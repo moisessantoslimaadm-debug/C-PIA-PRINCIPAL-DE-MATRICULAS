@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../contexts/DataContext';
-import { MapPin, Star, Users, Search, Map as MapIcon, List, X, Calendar, Hash, School as SchoolIcon, Layout, ArrowUpDown, PieChart, Baby, BookOpen, GraduationCap, Library, AlertCircle } from 'lucide-react';
+import { MapPin, Star, Users, Search, Map as MapIcon, List, X, Calendar, Hash, School as SchoolIcon, Layout, ArrowUpDown, PieChart, Baby, BookOpen, GraduationCap, Library, AlertCircle, Loader2 } from 'lucide-react';
 import { SchoolType, School, RegistryStudent } from '../types';
 
 // Declare Leaflet globally since we import it in index.html
@@ -17,43 +17,48 @@ interface SchoolMapProps {
 const SchoolMap: React.FC<SchoolMapProps> = ({ schools, center, onSelectSchool }) => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<any>(null);
+    const markersLayerRef = useRef<any>(null); // Optimization: Use LayerGroup
+    const [isMapReady, setIsMapReady] = useState(false);
 
+    // 1. Initialize Map Structure (Run Once)
     useEffect(() => {
         if (!mapContainerRef.current) return;
 
-        // Initialize Map
+        // Create Map Instance
         const map = L.map(mapContainerRef.current).setView([center.lat, center.lng], 13);
         
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
+        // Create a LayerGroup for markers (Efficient update)
+        const markersLayer = L.layerGroup().addTo(map);
+        
         mapInstanceRef.current = map;
+        markersLayerRef.current = markersLayer;
+        setIsMapReady(true);
 
-        // Cleanup on unmount
+        // Cleanup on unmount (Switching back to List View)
         return () => {
             if (mapInstanceRef.current) {
                 mapInstanceRef.current.remove();
                 mapInstanceRef.current = null;
+                markersLayerRef.current = null;
             }
         };
-    }, []); // Run only on mount
+    }, []); // Empty dependency array ensures this runs strictly on mount
 
-    // Update markers when schools data changes
+    // 2. Update Markers (Runs when schools data or map ready state changes)
     useEffect(() => {
-        if (!mapInstanceRef.current) return;
+        if (!isMapReady || !markersLayerRef.current) return;
         
+        const layerGroup = markersLayerRef.current;
         const map = mapInstanceRef.current;
         
-        // Clear existing markers (brute force for simplicity in this context, 
-        // normally we'd use a LayerGroup)
-        map.eachLayer((layer: any) => {
-            if (layer instanceof L.Marker) {
-                map.removeLayer(layer);
-            }
-        });
+        // Efficiently clear old markers
+        layerGroup.clearLayers();
 
-        // Custom Icon
+        // Custom Icon Definition
         const schoolIcon = L.icon({
             iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
             iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -64,10 +69,10 @@ const SchoolMap: React.FC<SchoolMapProps> = ({ schools, center, onSelectSchool }
             shadowSize: [41, 41]
         });
 
-        // Add Markers
+        // Add New Markers
         const markers: any[] = [];
         schools.forEach((school) => {
-            const marker = L.marker([school.lat, school.lng], { icon: schoolIcon }).addTo(map);
+            const marker = L.marker([school.lat, school.lng], { icon: schoolIcon });
             
             // Create popup content
             const popupContent = document.createElement('div');
@@ -88,19 +93,30 @@ const SchoolMap: React.FC<SchoolMapProps> = ({ schools, center, onSelectSchool }
             });
 
             marker.bindPopup(popupContent);
+            marker.addTo(layerGroup); // Add to layer group instead of map directly
             markers.push(marker);
         });
 
         // Fit bounds if there are markers
         if (markers.length > 0) {
             const group = L.featureGroup(markers);
-            map.fitBounds(group.getBounds().pad(0.1));
+            try {
+                map.fitBounds(group.getBounds().pad(0.1));
+            } catch (e) {
+                // Ignore bounds error if map not fully sized yet
+            }
         }
 
-    }, [schools, onSelectSchool]);
+    }, [schools, isMapReady, onSelectSchool]);
 
     return (
         <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden h-[600px] relative animate-in fade-in duration-500">
+             {!isMapReady && (
+                 <div className="absolute inset-0 flex items-center justify-center bg-slate-50 z-20">
+                     <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+                     <span className="ml-2 text-slate-500 font-medium">Carregando mapa...</span>
+                 </div>
+             )}
              <div ref={mapContainerRef} className="w-full h-full z-10" />
              {/* Legend overlay */}
              <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-md z-[400] text-xs">
@@ -342,32 +358,56 @@ export const SchoolList: React.FC = () => {
               const available = Math.max(0, capacity - enrolledCount);
               const occupancy = capacity > 0 ? (enrolledCount / capacity) * 100 : 0;
               
-              // Status Badge Logic
-              let badgeText = 'Vagas Abertas';
-              let badgeColor = 'bg-green-500 text-white';
-              
-              if (capacity === 0) {
-                  badgeText = 'Cadastro Reserva';
-                  badgeColor = 'bg-slate-500 text-white';
-              } else if (occupancy >= 100) {
-                  badgeText = 'Lotado';
-                  badgeColor = 'bg-red-500 text-white';
-              } else if (occupancy >= 80) {
-                  badgeText = 'Últimas Vagas';
-                  badgeColor = 'bg-yellow-500 text-white';
-              }
+              // Visual State Logic for Color Coding
+              let visualState = 'success'; // default green
+              if (capacity === 0) visualState = 'neutral';
+              else if (occupancy >= 100) visualState = 'danger';
+              else if (occupancy >= 80) visualState = 'warning';
 
-              // Progress Bar Colors
-              let progressColor = 'bg-green-500';
-              let textColor = 'text-green-600';
-              if (occupancy > 75) { progressColor = 'bg-yellow-500'; textColor = 'text-yellow-600'; }
-              if (occupancy >= 95) { progressColor = 'bg-red-500'; textColor = 'text-red-600'; }
+              // Map state to color styles
+              const colors = {
+                  success: { 
+                      border: 'border-green-200 hover:border-green-400 ring-green-50', 
+                      badge: 'bg-green-500 text-white', 
+                      text: 'text-green-700', 
+                      bg: 'bg-green-50', 
+                      bar: 'bg-green-500' 
+                  },
+                  warning: { 
+                      border: 'border-yellow-200 hover:border-yellow-400 ring-yellow-50', 
+                      badge: 'bg-yellow-500 text-white', 
+                      text: 'text-yellow-700', 
+                      bg: 'bg-yellow-50', 
+                      bar: 'bg-yellow-500' 
+                  },
+                  danger: { 
+                      border: 'border-red-200 hover:border-red-400 ring-red-50', 
+                      badge: 'bg-red-500 text-white', 
+                      text: 'text-red-700', 
+                      bg: 'bg-red-50', 
+                      bar: 'bg-red-500' 
+                  },
+                  neutral: { 
+                      border: 'border-slate-200 hover:border-slate-300 ring-slate-50', 
+                      badge: 'bg-slate-500 text-white', 
+                      text: 'text-slate-600', 
+                      bg: 'bg-slate-50', 
+                      bar: 'bg-slate-400' 
+                  }
+              };
+
+              const currentColors = colors[visualState as keyof typeof colors];
+
+              let badgeText = 'Vagas Abertas';
+              if (visualState === 'neutral') badgeText = 'Cadastro Reserva';
+              else if (visualState === 'danger') badgeText = 'Lotado';
+              else if (visualState === 'warning') badgeText = 'Últimas Vagas';
 
               // Get School Icon
               const typeIconInfo = getSchoolTypeIcon(school.types);
 
               return (
-                <div key={school.id} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition duration-300 group flex flex-col h-full">
+                <div key={school.id} className={`bg-white rounded-xl shadow-sm border ${currentColors.border} overflow-hidden hover:shadow-xl hover:-translate-y-1 transition duration-300 group flex flex-col h-full ring-1 ring-inset ring-transparent hover:ring-opacity-50`}>
                   <div className="relative h-40 overflow-hidden">
                     <img 
                       src={school.image} 
@@ -377,7 +417,7 @@ export const SchoolList: React.FC = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent"></div>
                     
                     {/* Status Badge */}
-                    <div className={`absolute top-3 left-3 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border border-white/20 shadow-sm backdrop-blur-md ${badgeColor} bg-opacity-90`}>
+                    <div className={`absolute top-3 left-3 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border border-white/20 shadow-sm backdrop-blur-md ${currentColors.badge} bg-opacity-90`}>
                         {badgeText}
                     </div>
 
@@ -420,8 +460,8 @@ export const SchoolList: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Enhanced Availability Section */}
-                    <div className="pt-4 border-t border-slate-100 mt-auto">
+                    {/* Enhanced Availability Section with Color Tint */}
+                    <div className={`pt-4 border-t border-slate-100 mt-auto -mx-5 -mb-5 px-5 pb-5 ${currentColors.bg} bg-opacity-20`}>
                         <div className="flex justify-between items-end mb-2">
                             <div>
                                 <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Disponibilidade</p>
@@ -430,13 +470,13 @@ export const SchoolList: React.FC = () => {
                                     <span className="text-xs text-slate-500 font-medium">/ {capacity > 0 ? capacity : '?'} preenchidas</span>
                                 </div>
                             </div>
-                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full bg-opacity-20 ${textColor.replace('text-', 'bg-')} ${textColor}`}>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full bg-opacity-20 ${currentColors.text.replace('text-', 'bg-')} ${currentColors.text}`}>
                                 {capacity > 0 ? `${occupancy.toFixed(0)}%` : 'N/A'}
                             </span>
                         </div>
                         
-                        <div className="w-full bg-slate-100 rounded-full h-2 mb-3 overflow-hidden">
-                            <div className={`h-full rounded-full transition-all duration-500 ${progressColor}`} style={{ width: `${Math.min(occupancy, 100)}%` }}></div>
+                        <div className="w-full bg-white rounded-full h-2 mb-3 overflow-hidden shadow-sm">
+                            <div className={`h-full rounded-full transition-all duration-500 ${currentColors.bar}`} style={{ width: `${Math.min(occupancy, 100)}%` }}></div>
                         </div>
 
                         <div className="flex justify-between items-center">
@@ -449,7 +489,7 @@ export const SchoolList: React.FC = () => {
 
                             <button 
                                 onClick={() => handleSchoolSelect(school)}
-                                className="text-blue-600 text-xs font-bold hover:text-blue-800 transition-colors flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg"
+                                className="text-blue-600 text-xs font-bold hover:text-blue-800 transition-colors flex items-center gap-1 bg-white hover:bg-blue-50 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm"
                             >
                               Ver Detalhes
                               <Layout className="h-3 w-3 ml-1" />

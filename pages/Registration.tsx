@@ -298,10 +298,15 @@ export const Registration: React.FC = () => {
         return;
     }
 
+    if (section === 'guardian' && (!cpf || cpf.trim() === '')) {
+        setErrors(prev => ({ ...prev, [`${section}Cpf`]: 'Campo obrigatório' }));
+        return;
+    }
+
     if (cpf && !isValidCPF(cpf)) {
       setErrors(prev => ({
         ...prev,
-        [`${section}Cpf`]: 'CPF inválido. Verifique os números digitados.'
+        [`${section}Cpf`]: 'CPF inválido.'
       }));
     }
   };
@@ -390,15 +395,45 @@ export const Registration: React.FC = () => {
 
 
   const nextStep = () => {
-    // Validate Guardian CPF before moving from step 2
+    // Validate Step 1 (Student)
+    if (formState.step === 1) {
+         if (!formState.student.fullName.trim() || !formState.student.birthDate) {
+             addToast('Por favor, preencha o nome completo e a data de nascimento do aluno.', 'warning');
+             return;
+         }
+         // Optional CPF check
+         if (formState.student.cpf && !isValidCPF(formState.student.cpf)) {
+             setErrors(prev => ({...prev, studentCpf: 'CPF do aluno inválido'}));
+             addToast('O CPF do aluno informado é inválido.', 'error');
+             return;
+         }
+    }
+
+    // Validate Step 2 (Guardian)
     if (formState.step === 2) {
+        const cpfClean = formState.guardian.cpf.replace(/\D/g, '');
+        
+        if (!cpfClean) {
+             setErrors(prev => ({
+                ...prev,
+                guardianCpf: 'O CPF do responsável é obrigatório.'
+              }));
+              addToast('Informe o CPF do responsável.', 'warning');
+              return;
+        }
+
         if (!isValidCPF(formState.guardian.cpf)) {
              setErrors(prev => ({
                 ...prev,
-                guardianCpf: 'CPF do responsável é obrigatório e deve ser válido.'
+                guardianCpf: 'CPF do responsável inválido.'
               }));
-              addToast('Verifique o CPF do responsável.', 'error');
+              addToast('CPF do responsável inválido. Verifique os números.', 'error');
               return;
+        }
+        
+        if (!formState.guardian.fullName.trim()) {
+            addToast('O nome do responsável é obrigatório.', 'warning');
+            return;
         }
     }
 
