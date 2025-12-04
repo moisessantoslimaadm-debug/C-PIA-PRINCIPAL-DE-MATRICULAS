@@ -1269,7 +1269,14 @@ export const AdminData: React.FC = () => {
                                             {selectedIds.has(s.id) ? <CheckSquare className="h-5 w-5 text-blue-600" /> : <Square className="h-5 w-5 text-slate-300" />}
                                         </button>
                                     </td>
-                                    <td className="px-6 py-4 font-medium text-slate-900">{s.name}</td>
+                                    <td className="px-6 py-4 font-medium text-slate-900">
+                                        <button 
+                                            onClick={() => setSelectedStudent(s)}
+                                            className="text-left hover:text-blue-600 hover:underline focus:outline-none transition-colors w-full truncate font-bold"
+                                        >
+                                            {s.name}
+                                        </button>
+                                    </td>
                                     <td className="px-6 py-4 font-mono text-xs">{s.cpf}</td>
                                     <td className="px-6 py-4">{s.school || '-'}</td>
                                     <td className="px-6 py-4">{s.className || '-'}</td>
