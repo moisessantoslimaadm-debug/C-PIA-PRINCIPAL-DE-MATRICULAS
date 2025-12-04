@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { useSearchParams, Link } from '../router';
 import { CheckCircle, FileText, Search, UserCheck, AlertCircle, Bus, GraduationCap, School, Clock, Hash, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
@@ -131,22 +130,29 @@ export const Status: React.FC = () => {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center animate-in zoom-in-95 duration-300 border border-slate-100">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 print-container">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center animate-in zoom-in-95 duration-300 border border-slate-100 print:shadow-none print:border-none print:w-full print:max-w-none">
+          
+          {/* Print Header */}
+          <div className="hidden print:block mb-8 border-b border-black pb-4">
+            <h1 className="text-xl font-bold uppercase">Secretaria Municipal de Educação</h1>
+            <p className="text-sm">Comprovante de Solicitação de Matrícula</p>
+          </div>
+
+          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner no-print">
             <CheckCircle className="h-10 w-10 text-green-600" />
           </div>
           <h2 className="text-2xl font-bold text-slate-900 mb-2">Solicitação Enviada!</h2>
           <p className="text-slate-600 mb-6">
             Os dados foram recebidos com sucesso. O número do seu protocolo é:
           </p>
-          <div className="bg-blue-50 py-4 px-6 rounded-xl mb-8 border border-blue-100">
-            <span className="text-2xl font-mono font-bold text-blue-700 tracking-wider">MAT-{Math.floor(Math.random() * 100000)}</span>
+          <div className="bg-blue-50 py-4 px-6 rounded-xl mb-8 border border-blue-100 print:bg-transparent print:border-black print:border-2">
+            <span className="text-2xl font-mono font-bold text-blue-700 tracking-wider print:text-black">MAT-{Math.floor(Math.random() * 100000)}</span>
           </div>
-          <p className="text-sm text-slate-500 mb-8">
+          <p className="text-sm text-slate-500 mb-8 no-print">
             Você receberá atualizações sobre o status da matrícula no email cadastrado e via WhatsApp.
           </p>
-          <div className="space-y-3">
+          <div className="space-y-3 no-print">
              <button onClick={() => window.print()} className="w-full py-3 border border-slate-200 rounded-xl text-slate-700 font-medium hover:bg-slate-50 transition flex items-center justify-center gap-2">
               <FileText className="h-4 w-4" />
               Imprimir Comprovante
@@ -155,13 +161,18 @@ export const Status: React.FC = () => {
               Voltar ao Início
             </Link>
           </div>
+
+          <div className="hidden print:block text-xs text-left mt-12 pt-4 border-t border-black">
+             <p>Data de emissão: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString()}</p>
+             <p className="mt-2">Este comprovante garante apenas o registro da solicitação, não a vaga. Aguarde a confirmação oficial.</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4">
+    <div className="min-h-screen bg-slate-50 py-12 px-4 no-print">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-slate-900">Consultas</h1>

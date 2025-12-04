@@ -1,10 +1,9 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { INITIAL_REGISTRATION_STATE } from '../constants';
 import { useData } from '../contexts/DataContext';
 import { useToast } from '../contexts/ToastContext';
 import { RegistrationFormState, RegistryStudent } from '../types';
-import { Check, ChevronRight, ChevronLeft, Upload, School as SchoolIcon, Bus, FileText, ListChecks, MapPin, Navigation, AlertCircle, Loader2, Search, RefreshCw } from 'lucide-react';
+import { Check, ChevronRight, ChevronLeft, Upload, School as SchoolIcon, Bus, FileText, ListChecks, MapPin, Navigation, AlertCircle, Loader2, Search, RefreshCw, Crosshair } from 'lucide-react';
 import { useNavigate } from '../router';
 
 // Declare Leaflet globally
@@ -253,6 +252,42 @@ export const Registration: React.FC = () => {
     } finally {
       setIsGeocoding(false);
     }
+  };
+
+  // Use GPS Location
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      addToast('Seu navegador não suporta geolocalização.', 'error');
+      return;
+    }
+
+    setIsGeocoding(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setFormState(prev => ({
+          ...prev,
+          address: { ...prev.address, lat: latitude, lng: longitude }
+        }));
+        
+        if (mapRef.current) {
+          mapRef.current.setView([latitude, longitude], 16);
+          if (markerRef.current) {
+            markerRef.current.setLatLng([latitude, longitude]);
+          }
+        }
+        
+        // Fill address fields from coordinates
+        reverseGeocode(latitude, longitude);
+        addToast('Localização obtida com sucesso!', 'success');
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        addToast('Não foi possível obter sua localização. Verifique as permissões.', 'error');
+        setIsGeocoding(false);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
   };
 
   const handleBlur = (section: 'student' | 'guardian') => {
@@ -549,6 +584,7 @@ export const Registration: React.FC = () => {
                       <input
                         type="date"
                         required
+                        max={new Date().toISOString().split("T")[0]}
                         value={formState.student.birthDate}
                         onChange={(e) => handleInputChange('student', 'birthDate', e.target.value)}
                         className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
@@ -698,6 +734,16 @@ export const Registration: React.FC = () => {
                                Atualizando endereço...
                              </div>
                            )}
+                           
+                           {/* Use Current Location Button inside Map */}
+                           <button
+                             type="button"
+                             onClick={handleUseCurrentLocation}
+                             className="absolute bottom-4 right-4 z-[400] bg-white p-2 rounded-full shadow-lg border border-slate-200 text-blue-600 hover:bg-blue-50 transition"
+                             title="Usar minha localização atual"
+                           >
+                             <Crosshair className="h-5 w-5" />
+                           </button>
                       </div>
                       <div className="bg-white p-2 text-xs text-center text-slate-500 border-t border-slate-200">
                          {formState.address.lat ? (
@@ -775,7 +821,7 @@ export const Registration: React.FC = () => {
                           className="w-full py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 transition flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                            {isGeocoding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-                           Localizar no Mapa
+                           Buscar Endereço
                         </button>
                     </div>
                   </div>

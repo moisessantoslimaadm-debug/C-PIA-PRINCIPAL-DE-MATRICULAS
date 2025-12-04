@@ -12,6 +12,7 @@ import { ChatAssistant } from './components/ChatAssistant';
 import { HashRouter, Routes, Route, useLocation } from './router';
 import { DataProvider } from './contexts/DataContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const Footer: React.FC = () => {
   const { addToast } = useToast();
@@ -22,7 +23,7 @@ const Footer: React.FC = () => {
   };
 
   return (
-    <footer className="bg-slate-900 text-slate-400 py-12">
+    <footer className="bg-slate-900 text-slate-400 py-12 no-print">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-4 gap-8">
         <div>
           <h4 className="text-white font-bold text-lg mb-4">EducaMunicípio</h4>
@@ -113,14 +114,16 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <DataProvider>
-      <ToastProvider>
-        <HashRouter>
-          <ScrollToTop />
-          <AppContent />
-        </HashRouter>
-      </ToastProvider>
-    </DataProvider>
+    <ErrorBoundary>
+      <DataProvider>
+        <ToastProvider>
+          <HashRouter>
+            <ScrollToTop />
+            <AppContent />
+          </HashRouter>
+        </ToastProvider>
+      </DataProvider>
+    </ErrorBoundary>
   );
 };
 

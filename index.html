@@ -25,6 +25,35 @@
           -ms-overflow-style: none;
           scrollbar-width: none;
       }
+
+      /* Print Styles */
+      @media print {
+        nav, footer, .no-print, .chat-widget {
+          display: none !important;
+        }
+        body {
+          background-color: white !important;
+          color: black !important;
+        }
+        .print-container {
+          box-shadow: none !important;
+          border: 1px solid #ccc !important;
+          max-width: 100% !important;
+          margin: 0 !important;
+          padding: 20px !important;
+        }
+        .print-only {
+          display: block !important;
+        }
+        /* Ensure background colors (like badges) print */
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+      }
+      .print-only {
+        display: none;
+      }
     </style>
   <script type="importmap">
 {

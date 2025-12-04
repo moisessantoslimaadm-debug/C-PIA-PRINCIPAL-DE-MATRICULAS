@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../contexts/DataContext';
-import { MapPin, Star, Users, Search, Map as MapIcon, List, X, Calendar, Hash, School as SchoolIcon, Layout, ArrowUpDown, PieChart, Baby, BookOpen, GraduationCap, Library } from 'lucide-react';
+import { MapPin, Star, Users, Search, Map as MapIcon, List, X, Calendar, Hash, School as SchoolIcon, Layout, ArrowUpDown, PieChart, Baby, BookOpen, GraduationCap, Library, AlertCircle } from 'lucide-react';
 import { SchoolType, School, RegistryStudent } from '../types';
 
 // Declare Leaflet globally since we import it in index.html
@@ -339,11 +338,26 @@ export const SchoolList: React.FC = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {processedSchools.map((school) => {
               const enrolledCount = students.filter(s => s.school === school.name).length;
-              const capacity = school.availableSlots;
+              const capacity = school.availableSlots || 0;
               const available = Math.max(0, capacity - enrolledCount);
               const occupancy = capacity > 0 ? (enrolledCount / capacity) * 100 : 0;
               
-              // Color logic for occupancy
+              // Status Badge Logic
+              let badgeText = 'Vagas Abertas';
+              let badgeColor = 'bg-green-500 text-white';
+              
+              if (capacity === 0) {
+                  badgeText = 'Cadastro Reserva';
+                  badgeColor = 'bg-slate-500 text-white';
+              } else if (occupancy >= 100) {
+                  badgeText = 'Lotado';
+                  badgeColor = 'bg-red-500 text-white';
+              } else if (occupancy >= 80) {
+                  badgeText = 'Últimas Vagas';
+                  badgeColor = 'bg-yellow-500 text-white';
+              }
+
+              // Progress Bar Colors
               let progressColor = 'bg-green-500';
               let textColor = 'text-green-600';
               if (occupancy > 75) { progressColor = 'bg-yellow-500'; textColor = 'text-yellow-600'; }
@@ -361,11 +375,18 @@ export const SchoolList: React.FC = () => {
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-500" 
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-transparent"></div>
+                    
+                    {/* Status Badge */}
+                    <div className={`absolute top-3 left-3 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border border-white/20 shadow-sm backdrop-blur-md ${badgeColor} bg-opacity-90`}>
+                        {badgeText}
+                    </div>
+
                     {school.inep && (
-                       <div className="absolute top-3 left-3 bg-black/40 backdrop-blur-md text-white text-[10px] font-mono px-2 py-0.5 rounded border border-white/20">
+                       <div className="absolute top-10 left-3 bg-black/40 backdrop-blur-md text-white text-[10px] font-mono px-2 py-0.5 rounded border border-white/20">
                          INEP: {school.inep}
                        </div>
                     )}
+                    
                     {/* Visual Icon Badge */}
                     <div className={`absolute top-3 right-3 p-2 rounded-full shadow-sm backdrop-blur-md border border-white/20 z-10 ${typeIconInfo.bg} bg-opacity-90`} title={typeIconInfo.label}>
                         <div className={typeIconInfo.color}>
