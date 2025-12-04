@@ -21,13 +21,23 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider = ({ children }: { children?: ReactNode }) => {
   // Inicializa com os dados do LocalStorage se existirem, senão usa os Mocks
   const [schools, setSchools] = useState<School[]>(() => {
-    const saved = localStorage.getItem('educa_schools');
-    return saved ? JSON.parse(saved) : MOCK_SCHOOLS;
+    try {
+      const saved = localStorage.getItem('educa_schools');
+      return saved ? JSON.parse(saved) : MOCK_SCHOOLS;
+    } catch (e) {
+      console.error("Error loading schools from local storage", e);
+      return MOCK_SCHOOLS;
+    }
   });
 
   const [students, setStudents] = useState<RegistryStudent[]>(() => {
-    const saved = localStorage.getItem('educa_students');
-    return saved ? JSON.parse(saved) : MOCK_STUDENT_REGISTRY;
+    try {
+      const saved = localStorage.getItem('educa_students');
+      return saved ? JSON.parse(saved) : MOCK_STUDENT_REGISTRY;
+    } catch (e) {
+      console.error("Error loading students from local storage", e);
+      return MOCK_STUDENT_REGISTRY;
+    }
   });
 
   const [lastBackupDate, setLastBackupDate] = useState<string | null>(() => {
@@ -112,7 +122,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       updateStudents, 
       removeStudent, 
       removeSchool, 
-      resetData,
+      resetData, 
       registerBackup
     }}>
       {children}

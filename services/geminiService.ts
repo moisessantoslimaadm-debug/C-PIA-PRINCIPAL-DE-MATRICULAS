@@ -1,8 +1,6 @@
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import { MUNICIPALITY_NAME, MOCK_SCHOOLS } from '../constants';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const SYSTEM_INSTRUCTION = `
 Você é o "Edu", o assistente virtual oficial da Secretaria de Educação do município de ${MUNICIPALITY_NAME}.
 Sua função é auxiliar pais e responsáveis no processo de matrícula escolar online.
@@ -23,10 +21,19 @@ Diretrizes de comportamento:
 `;
 
 let chatSession: Chat | null = null;
+let ai: GoogleGenAI | null = null;
+
+const getAiClient = () => {
+  if (!ai) {
+    ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  }
+  return ai;
+}
 
 export const getChatSession = (): Chat => {
   if (!chatSession) {
-    chatSession = ai.chats.create({
+    const client = getAiClient();
+    chatSession = client.chats.create({
       model: 'gemini-2.5-flash',
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
