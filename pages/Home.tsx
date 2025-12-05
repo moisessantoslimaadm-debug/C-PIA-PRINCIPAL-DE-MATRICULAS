@@ -1,10 +1,21 @@
 
-import React from 'react';
-import { Link } from '../router';
-import { Calendar, CheckCircle2, MapPin, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { Link, useNavigate } from '../router';
+import { Calendar, CheckCircle2, MapPin, ArrowRight, Loader2 } from 'lucide-react';
 import { MUNICIPALITY_NAME } from '../constants';
 
 export const Home: React.FC = () => {
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleRegistrationClick = () => {
+    setIsLoading(true);
+    // Adiciona um pequeno delay artificial para feedback visual antes da navegação
+    setTimeout(() => {
+      navigate('/registration');
+    }, 600);
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
@@ -22,13 +33,23 @@ export const Home: React.FC = () => {
               Garanta o futuro do seu filho de forma rápida e segura. Realize a pré-matrícula na rede municipal de ensino sem sair de casa.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link
-                to="/registration"
-                className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-lg text-blue-900 bg-white hover:bg-blue-50 shadow-lg transition duration-150"
+              <button
+                onClick={handleRegistrationClick}
+                disabled={isLoading}
+                className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-lg text-blue-900 bg-white hover:bg-blue-50 shadow-lg transition duration-150 disabled:opacity-90 disabled:cursor-wait"
               >
-                Fazer Matrícula
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
+                {isLoading ? (
+                  <>
+                    Iniciando...
+                    <Loader2 className="ml-2 h-5 w-5 animate-spin" />
+                  </>
+                ) : (
+                  <>
+                    Fazer Matrícula
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </>
+                )}
+              </button>
               <Link
                 to="/schools"
                 className="inline-flex items-center justify-center px-8 py-3 border border-white/30 text-base font-medium rounded-lg text-white hover:bg-white/10 backdrop-blur-sm transition duration-150"

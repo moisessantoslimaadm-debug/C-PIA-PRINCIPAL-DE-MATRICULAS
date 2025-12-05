@@ -1,4 +1,4 @@
-import React, { ErrorInfo, ReactNode } from 'react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
 interface Props {
@@ -10,8 +10,7 @@ interface State {
   error: Error | null;
 }
 
-// Fix: Use React.Component to ensure props type inference works correctly
-export class ErrorBoundary extends React.Component<Props, State> {
+export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null,
@@ -32,8 +31,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
   private handleReset = () => {
     // Emergency data clear if data corruption is the cause
     if (window.confirm("Isso limpará os dados locais para tentar recuperar o sistema. Deseja continuar?")) {
-        localStorage.clear();
-        window.location.href = '/';
+      localStorage.clear();
+      window.location.href = '/';
     }
   };
 

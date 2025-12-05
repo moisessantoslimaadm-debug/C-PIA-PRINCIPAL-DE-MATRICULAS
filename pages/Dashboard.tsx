@@ -1,9 +1,10 @@
+
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useData } from '../contexts/DataContext';
 import { Link } from '../router';
 import { 
   Users, School, AlertTriangle, Bus, TrendingUp, PieChart, 
-  Activity, CheckCircle, Clock, Baby, GraduationCap, Info, Map as MapIcon, Layers, Save, Download
+  Activity, CheckCircle, Clock, Baby, GraduationCap, Info, Map as MapIcon, Save, Download
 } from 'lucide-react';
 import { SchoolType } from '../types';
 
@@ -191,6 +192,7 @@ const StudentDensityMap: React.FC = () => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<any>(null);
     const heatLayerRef = useRef<any>(null);
+    const schoolMarkersLayerRef = useRef<any>(null);
     const [viewType, setViewType] = useState<'all' | 'pending'>('all');
 
     useEffect(() => {
@@ -202,7 +204,22 @@ const StudentDensityMap: React.FC = () => {
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
+            
+            // Create layer group for school markers so they are on top of heatmap
+            schoolMarkersLayerRef.current = L.layerGroup().addTo(map);
+            
             mapRef.current = map;
+        }
+
+        const map = mapRef.current;
+
+        // Force layout update to prevent "source height is 0" error
+        map.invalidateSize();
+
+        // Check dimensions before proceeding
+        const container = mapContainerRef.current;
+        if (!container || container.clientHeight === 0 || container.clientWidth === 0) {
+            return;
         }
 
         // Generate Heat Points
@@ -237,19 +254,60 @@ const StudentDensityMap: React.FC = () => {
 
         // Remove existing heat layer
         if (heatLayerRef.current) {
-            mapRef.current.removeLayer(heatLayerRef.current);
+            map.removeLayer(heatLayerRef.current);
+            heatLayerRef.current = null;
         }
 
-        // Add new heat layer
+        // Add new heat layer only if points exist
         if (typeof L.heatLayer === 'function' && points.length > 0) {
-            heatLayerRef.current = L.heatLayer(points, {
-                radius: 25,
-                blur: 15,
-                maxZoom: 17,
-                gradient: viewType === 'all' 
-                    ? {0.4: 'blue', 0.65: 'lime', 1: 'red'}
-                    : {0.4: 'yellow', 0.65: 'orange', 1: 'red'}
-            }).addTo(mapRef.current);
+            try {
+                // Double check size again just before drawing
+                // Ensure BOTH width and height are greater than 0 to avoid canvas errors
+                const size = map.getSize();
+                if (size.x > 0 && size.y > 0) {
+                    heatLayerRef.current = L.heatLayer(points, {
+                        radius: 25,
+                        blur: 15,
+                        maxZoom: 17,
+                        gradient: viewType === 'all' 
+                            ? {0.4: 'blue', 0.65: 'lime', 1: 'red'}
+                            : {0.4: 'yellow', 0.65: 'orange', 1: 'red'}
+                    }).addTo(map);
+                } else {
+                    console.warn("Skipping heatmap: Map dimensions too small", size);
+                }
+            } catch (err) {
+                console.warn("Could not add heatmap layer", err);
+            }
+        }
+
+        // --- Add School Markers ---
+        if (schoolMarkersLayerRef.current) {
+            schoolMarkersLayerRef.current.clearLayers();
+
+            const schoolIcon = L.icon({
+                iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowSize: [41, 41]
+            });
+
+            schools.forEach((school) => {
+                if (school.lat && school.lng) {
+                    const marker = L.marker([school.lat, school.lng], { icon: schoolIcon });
+                    const popupContent = `
+                        <div class="p-1 text-center min-w-[120px]">
+                            <h3 class="font-bold text-xs mb-1 text-slate-800">${school.name}</h3>
+                            <span class="bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5 rounded border border-blue-200">${school.types[0] || 'Escola'}</span>
+                        </div>
+                    `;
+                    marker.bindPopup(popupContent);
+                    marker.addTo(schoolMarkersLayerRef.current);
+                }
+            });
         }
 
     }, [students, schools, viewType]);
@@ -260,10 +318,10 @@ const StudentDensityMap: React.FC = () => {
                 <div>
                     <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                         <MapIcon className="h-5 w-5 text-blue-600" />
-                        Mapa de Calor: Densidade de Alunos
+                        Mapa de Calor e Escolas
                     </h2>
                     <p className="text-sm text-slate-500 mt-1">
-                        Visualização geoespacial da demanda por vagas (usa endereço exato se disponível).
+                        Visualize a demanda de alunos (manchas) em relação à localização das escolas (pinos).
                     </p>
                 </div>
                 <div className="flex bg-slate-100 p-1 rounded-lg">
@@ -288,9 +346,15 @@ const StudentDensityMap: React.FC = () => {
                 
                 {/* Overlay Legend */}
                 <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm p-3 rounded-lg shadow-lg z-[400] text-xs border border-slate-200">
-                    <h4 className="font-bold mb-2 text-slate-700">Intensidade</h4>
+                    <h4 className="font-bold mb-2 text-slate-700">Legenda</h4>
+                    <div className="flex items-center gap-2 mb-3">
+                        <img src="https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png" className="h-4" alt="School" />
+                        <span>Escola</span>
+                    </div>
+                    <div className="border-t border-slate-300 my-2"></div>
+                    <h4 className="font-bold mb-1 text-slate-700">Densidade de Alunos</h4>
                     <div className="flex items-center gap-2 mb-1">
-                        <div className="w-20 h-2 bg-gradient-to-r from-blue-500 via-lime-500 to-red-500 rounded-full"></div>
+                        <div className="w-24 h-2 bg-gradient-to-r from-blue-500 via-lime-500 to-red-500 rounded-full"></div>
                     </div>
                     <div className="flex justify-between text-[10px] text-slate-500">
                         <span>Baixa</span>

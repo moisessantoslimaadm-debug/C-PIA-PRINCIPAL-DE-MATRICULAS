@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useSearchParams, Link } from '../router';
-import { CheckCircle, FileText, Search, UserCheck, AlertCircle, Bus, GraduationCap, School, Clock, Hash, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { CheckCircle, FileText, Search, UserCheck, AlertCircle, Bus, GraduationCap, School, Clock, Hash, Filter, ArrowUpDown, ArrowUp, ArrowDown, Printer } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { RegistryStudent } from '../types';
 
@@ -14,23 +14,6 @@ const normalizeString = (str: string) => {
     .replace(/[\u0300-\u036f]/g, "") // Remove accents
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ""); // Remove special chars (keep letters, numbers, spaces)
-};
-
-// Helper to format CPF input dynamically
-const formatSearchInput = (value: string) => {
-  // If the first character is a number, apply CPF mask
-  // Also allows pasting a CPF with standard formatting
-  const numbers = value.replace(/\D/g, '');
-  
-  // If it starts with a number or looks like it's trying to be a CPF
-  if (/^\d/.test(value) || (numbers.length > 0 && numbers.length <= 11 && !/[a-z]/i.test(value))) {
-    return numbers
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})/, '$1-$2')
-      .replace(/(-\d{2})\d+?$/, '$1');
-  }
-  return value; // Return as is for names
 };
 
 export const Status: React.FC = () => {
@@ -53,8 +36,8 @@ export const Status: React.FC = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatSearchInput(e.target.value);
-    setStudentInput(formatted);
+    // Allow free typing to support Protocols/IDs which might not follow CPF format
+    setStudentInput(e.target.value);
   };
 
   const handleStudentSearch = (e: React.FormEvent) => {
@@ -62,26 +45,29 @@ export const Status: React.FC = () => {
     if (!studentInput.trim()) return;
 
     const term = studentInput.trim();
-    const normalizedTerm = normalizeString(term);
-    const cleanCpfTerm = term.replace(/\D/g, '');
+    const cleanTerm = term.replace(/\D/g, ''); // Numeric only version
+    const normalizedTerm = normalizeString(term); // Text normalization
 
     const found = students.filter(s => {
-      // Name Search (Normalized & Robust)
-      // Removes special chars to ensure "D'Ávila" matches "davila"
+      // 1. CPF Match (Compare numeric values)
+      // Allows searching by "123.456" or "123456"
+      const studentCpfClean = s.cpf ? s.cpf.replace(/\D/g, '') : '';
+      const matchesCpf = cleanTerm.length > 0 && studentCpfClean.includes(cleanTerm);
+
+      // 2. Protocol/Enrollment Match
+      // Check raw string (e.g. "MAT-123") AND numeric part (e.g. "123")
+      const enrollmentRaw = s.enrollmentId ? s.enrollmentId.toLowerCase() : '';
+      const enrollmentClean = enrollmentRaw.replace(/\D/g, '');
+      const matchesProtocol = 
+        (s.enrollmentId && s.enrollmentId.toLowerCase().includes(term.toLowerCase())) || 
+        (cleanTerm.length > 0 && enrollmentClean.includes(cleanTerm)) ||
+        (s.id === term || s.id === cleanTerm);
+      
+      // 3. Name Match
       const studentNameNorm = normalizeString(s.name);
       const matchesName = studentNameNorm.includes(normalizedTerm);
 
-      // CPF Search (Clean numbers)
-      const studentCpfClean = s.cpf ? s.cpf.replace(/\D/g, '') : '';
-      // Only match CPF if the term looks like a CPF (has digits) and matches
-      // Allowing partial match for CPF if at least 3 digits to avoid noise
-      const matchesCpf = cleanCpfTerm.length >= 3 && studentCpfClean.includes(cleanCpfTerm);
-
-      // Protocol/ID Search
-      const matchesProtocol = s.enrollmentId && s.enrollmentId.toLowerCase().includes(term.toLowerCase());
-      const matchesId = s.id === term;
-
-      return matchesName || matchesCpf || matchesProtocol || matchesId;
+      return matchesCpf || matchesProtocol || matchesName;
     });
 
     setSearchResults(found);
@@ -172,16 +158,24 @@ export const Status: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 no-print">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
+    <div className="min-h-screen bg-slate-50 py-12 px-4 print:bg-white print:p-0">
+      <div className="max-w-4xl mx-auto print:max-w-none">
+        
+        <div className="text-center mb-8 no-print">
           <h1 className="text-3xl font-bold text-slate-900">Consultas</h1>
           <p className="text-slate-600 mt-2">Verifique o andamento da matrícula ou a situação cadastral.</p>
         </div>
         
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 min-h-[500px]">
+        {/* Print Only Official Header */}
+        <div className="hidden print:flex flex-col items-center justify-center mb-8 border-b border-black pb-4 text-center">
+             <h1 className="text-2xl font-bold uppercase tracking-wider">Secretaria Municipal de Educação</h1>
+             <p className="text-sm uppercase font-medium">Relatório de Situação Cadastral</p>
+             <p className="text-xs mt-1">Emitido em: {new Date().toLocaleDateString()} às {new Date().toLocaleTimeString()}</p>
+        </div>
+        
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 min-h-[500px] print:shadow-none print:border-none">
           {/* Tabs */}
-          <div className="flex border-b border-slate-200 bg-slate-50/50">
+          <div className="flex border-b border-slate-200 bg-slate-50/50 no-print">
             <button
               onClick={() => setActiveTab('protocol')}
               className={`flex-1 py-4 text-sm font-semibold text-center transition-all flex items-center justify-center gap-2 relative ${
@@ -208,9 +202,9 @@ export const Status: React.FC = () => {
             </button>
           </div>
 
-          <div className="p-6 md:p-8">
+          <div className="p-6 md:p-8 print:p-0">
             {activeTab === 'protocol' ? (
-              <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300 max-w-md mx-auto mt-8">
+              <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300 max-w-md mx-auto mt-8 no-print">
                 <div>
                    <label className="block text-sm font-medium text-slate-700 mb-1">CPF do Responsável</label>
                    <input type="text" placeholder="000.000.000-00" className="w-full px-4 py-3 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-shadow" />
@@ -231,12 +225,12 @@ export const Status: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                <form onSubmit={handleStudentSearch} className="space-y-4 max-w-2xl mx-auto">
+                <form onSubmit={handleStudentSearch} className="space-y-4 max-w-2xl mx-auto no-print">
                    <div className="relative">
-                     <label className="block text-sm font-medium text-slate-700 mb-1">Nome Completo ou CPF do Aluno</label>
+                     <label className="block text-sm font-medium text-slate-700 mb-1">Buscar Aluno</label>
                      <input 
                       type="text" 
-                      placeholder="Digite o nome ou CPF (apenas números)..." 
+                      placeholder="Nome, CPF ou Nº de Matrícula..." 
                       value={studentInput}
                       onChange={handleSearchInputChange}
                       className="w-full px-4 py-3 pl-11 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 transition-shadow" 
@@ -250,7 +244,7 @@ export const Status: React.FC = () => {
 
                 {/* Filters and Sort Controls - Only show if search triggered */}
                 {searchResults.length > 0 && (
-                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200 mt-6">
+                    <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-50 p-4 rounded-xl border border-slate-200 mt-6 no-print">
                         <div className="flex items-center gap-2 w-full md:w-auto">
                             <Filter className="h-4 w-4 text-slate-500" />
                             <span className="text-sm font-medium text-slate-700">Filtrar:</span>
@@ -289,7 +283,7 @@ export const Status: React.FC = () => {
                 )}
 
                 {hasSearched && processedResults.length === 0 ? (
-                  <div className="bg-red-50 border border-red-100 rounded-xl p-6 flex flex-col items-center text-center gap-3 text-red-800 mt-6">
+                  <div className="bg-red-50 border border-red-100 rounded-xl p-6 flex flex-col items-center text-center gap-3 text-red-800 mt-6 no-print">
                     <div className="bg-white p-2 rounded-full shadow-sm">
                       <AlertCircle className="h-6 w-6 text-red-600" />
                     </div>
@@ -301,85 +295,95 @@ export const Status: React.FC = () => {
                 ) : (
                     <div className="grid gap-4 mt-6">
                         {processedResults.map((student) => (
-                           <div key={student.id} className="bg-white border border-slate-200 rounded-2xl p-0 overflow-hidden shadow-sm hover:shadow-md transition animate-in fade-in slide-in-from-bottom-4">
-                                <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                           <div key={student.id} className="bg-white border border-slate-200 rounded-2xl p-0 overflow-hidden shadow-sm hover:shadow-md transition animate-in fade-in slide-in-from-bottom-4 print:shadow-none print:border-black print:border-2 print:rounded-none print:break-inside-avoid">
+                                <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 print:bg-slate-100 print:border-black">
                                     <div>
                                         <h3 className="font-bold text-lg text-slate-900 leading-tight">{student.name}</h3>
                                         <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">ID: {student.id}</span>
+                                            <span className="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 print:border-black print:text-black">ID: {student.id}</span>
                                             {student.enrollmentId && (
-                                                <span className="text-xs font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-1">
+                                                <span className="text-xs font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 flex items-center gap-1 print:text-black print:border-black">
                                                     <Hash className="h-3 w-3" /> {student.enrollmentId}
                                                 </span>
                                             )}
                                         </div>
                                     </div>
-                                    <span className={`pl-2 pr-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border whitespace-nowrap flex items-center gap-1.5 ${
-                                        student.status === 'Matriculado' ? 'bg-green-50 text-green-700 border-green-200' :
-                                        student.status === 'Pendente' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                        'bg-blue-50 text-blue-700 border-blue-200'
-                                    }`}>
-                                        {student.status === 'Matriculado' && <CheckCircle className="h-3.5 w-3.5" />}
-                                        {student.status === 'Pendente' && <AlertCircle className="h-3.5 w-3.5" />}
-                                        {(student.status !== 'Matriculado' && student.status !== 'Pendente') && <Clock className="h-3.5 w-3.5" />}
-                                        {student.status}
-                                    </span>
+                                    <div className="flex flex-col sm:flex-row items-end gap-2">
+                                        <span className={`pl-2 pr-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border whitespace-nowrap flex items-center gap-1.5 print:border-black print:text-black ${
+                                            student.status === 'Matriculado' ? 'bg-green-50 text-green-700 border-green-200' :
+                                            student.status === 'Pendente' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+                                            'bg-blue-50 text-blue-700 border-blue-200'
+                                        }`}>
+                                            {student.status === 'Matriculado' && <CheckCircle className="h-3.5 w-3.5" />}
+                                            {student.status === 'Pendente' && <AlertCircle className="h-3.5 w-3.5" />}
+                                            {(student.status !== 'Matriculado' && student.status !== 'Pendente') && <Clock className="h-3.5 w-3.5" />}
+                                            {student.status}
+                                        </span>
+                                        <button 
+                                            onClick={() => window.print()}
+                                            className="hidden sm:flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 bg-slate-100 px-2 py-1 rounded border border-slate-200 no-print"
+                                            title="Imprimir Ficha"
+                                        >
+                                            <Printer className="h-3 w-3" />
+                                            Imprimir
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <div className="p-6">
-                                    <div className="grid grid-cols-2 gap-6 mb-5">
+                                <div className="p-6 print:p-4">
+                                    <div className="grid grid-cols-2 gap-6 mb-5 print:gap-2 print:mb-2">
                                         <div>
-                                            <span className="block text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">CPF</span>
+                                            <span className="block text-slate-400 text-xs font-medium uppercase tracking-wider mb-1 print:text-black">CPF</span>
                                             <span className="font-medium text-slate-800 font-mono">{student.cpf || "Não informado"}</span>
                                         </div>
                                         <div>
-                                            <span className="block text-slate-400 text-xs font-medium uppercase tracking-wider mb-1">Nascimento</span>
+                                            <span className="block text-slate-400 text-xs font-medium uppercase tracking-wider mb-1 print:text-black">Nascimento</span>
                                             <span className="font-medium text-slate-800">{student.birthDate}</span>
                                         </div>
                                     </div>
 
-                                    <div className="h-px bg-slate-100 w-full mb-5"></div>
+                                    <div className="h-px bg-slate-100 w-full mb-5 print:bg-black print:my-2"></div>
 
-                                    <div className="space-y-3">
+                                    <div className="space-y-3 print:space-y-1">
                                         {student.grade && (
                                             <div className="flex items-start gap-3">
-                                                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg shrink-0">
+                                                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg shrink-0 print:hidden">
                                                     <GraduationCap className="h-4 w-4" />
                                                 </div>
                                                 <div>
-                                                    <span className="block text-xs text-slate-500">Etapa / Turma</span>
+                                                    <span className="block text-xs text-slate-500 print:text-black">Etapa / Turma</span>
                                                     <span className="text-sm font-medium text-slate-900 block">{student.grade}</span>
-                                                    {student.className && <span className="text-xs text-blue-600 font-medium mt-0.5 block">{student.className}</span>}
+                                                    {student.className && <span className="text-xs text-blue-600 font-medium mt-0.5 block print:text-black">{student.className}</span>}
                                                 </div>
                                             </div>
                                         )}
 
                                         <div className="flex items-start gap-3">
-                                            <div className={`p-2 rounded-lg shrink-0 ${student.transportRequest ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-400'}`}>
+                                            <div className={`p-2 rounded-lg shrink-0 print:hidden ${student.transportRequest ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-400'}`}>
                                                 <Bus className="h-4 w-4" />
                                             </div>
                                             <div>
-                                                <span className="block text-xs text-slate-500">Transporte Escolar</span>
-                                                <span className={`text-sm font-medium ${student.transportRequest ? 'text-green-700' : 'text-slate-500'}`}>
+                                                <span className="block text-xs text-slate-500 print:text-black">Transporte Escolar</span>
+                                                <span className={`text-sm font-medium ${student.transportRequest ? 'text-green-700 print:text-black' : 'text-slate-500 print:text-black'}`}>
                                                     {student.transportRequest ? 'Utiliza Transporte Oficial' : 'Não Solicitado'}
                                                 </span>
                                                 {student.transportType && (
-                                                    <span className="text-xs text-slate-500 block mt-0.5 capitalize">{student.transportType}</span>
+                                                    <span className="text-xs text-slate-500 block mt-0.5 capitalize print:text-black">{student.transportType}</span>
                                                 )}
                                             </div>
                                         </div>
 
                                         {student.school && (
                                             <div className="flex items-start gap-3">
-                                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shrink-0">
+                                                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shrink-0 print:hidden">
                                                     <School className="h-4 w-4" />
                                                 </div>
                                                 <div>
-                                                    <span className="block text-xs text-slate-500">Unidade Escolar</span>
+                                                    <span className="block text-xs text-slate-500 print:text-black">Unidade Escolar</span>
                                                     <span className="text-sm font-medium text-slate-900 block">{student.school}</span>
                                                     {student.shift && (
-                                                        <div className="flex items-center gap-1 mt-1 text-xs text-slate-500">
-                                                            <Clock className="h-3 w-3" />
+                                                        <div className="flex items-center gap-1 mt-1 text-xs text-slate-500 print:text-black">
+                                                            <Clock className="h-3 w-3 print:hidden" />
                                                             {student.shift}
                                                         </div>
                                                     )}

@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../contexts/DataContext';
-import { MapPin, Star, Users, Search, Map as MapIcon, List, X, Calendar, Hash, School as SchoolIcon, Layout, ArrowUpDown, PieChart, Baby, BookOpen, GraduationCap, Library, AlertCircle, Loader2 } from 'lucide-react';
+import { MapPin, Star, Users, Search, Map as MapIcon, List, X, Calendar, Hash, School as SchoolIcon, Layout, ArrowUpDown, PieChart, Baby, BookOpen, GraduationCap, Library, Loader2 } from 'lucide-react';
 import { SchoolType, School, RegistryStudent } from '../types';
 
 // Declare Leaflet globally since we import it in index.html
@@ -17,40 +18,71 @@ interface SchoolMapProps {
 const SchoolMap: React.FC<SchoolMapProps> = ({ schools, center, onSelectSchool }) => {
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<any>(null);
-    const markersLayerRef = useRef<any>(null); // Optimization: Use LayerGroup
+    const markersLayerRef = useRef<any>(null);
     const [isMapReady, setIsMapReady] = useState(false);
 
-    // 1. Initialize Map Structure (Run Once)
+    // 1. Initialize Map Structure (Run Once on Mount)
     useEffect(() => {
-        if (!mapContainerRef.current) return;
+        let timerId: ReturnType<typeof setTimeout>;
 
-        // Create Map Instance
-        const map = L.map(mapContainerRef.current).setView([center.lat, center.lng], 13);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-
-        // Create a LayerGroup for markers (Efficient update)
-        const markersLayer = L.layerGroup().addTo(map);
-        
-        mapInstanceRef.current = map;
-        markersLayerRef.current = markersLayer;
-        setIsMapReady(true);
-
-        // Cleanup on unmount (Switching back to List View)
-        return () => {
+        // Cleanup function to destroy map when component unmounts
+        const cleanup = () => {
+            clearTimeout(timerId);
             if (mapInstanceRef.current) {
                 mapInstanceRef.current.remove();
                 mapInstanceRef.current = null;
                 markersLayerRef.current = null;
             }
         };
-    }, []); // Empty dependency array ensures this runs strictly on mount
+
+        // Check if Leaflet is loaded
+        if (typeof L === 'undefined') {
+            console.error("Leaflet library not loaded");
+            return;
+        }
+
+        // Lazy Init: Wait for a short delay to ensure the DOM is fully painted and the UI transition is complete.
+        // This prevents the "heavy" map initialization from blocking the tab switch animation.
+        timerId = setTimeout(() => {
+            requestAnimationFrame(() => {
+                if (!mapContainerRef.current) return;
+                if (mapInstanceRef.current) return; // Already initialized
+
+                try {
+                    // Create Map Instance
+                    const map = L.map(mapContainerRef.current).setView([center.lat, center.lng], 13);
+                    
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    }).addTo(map);
+
+                    // Create a LayerGroup for markers (Efficient update)
+                    const markersLayer = L.layerGroup().addTo(map);
+                    
+                    mapInstanceRef.current = map;
+                    markersLayerRef.current = markersLayer;
+                    
+                    // Signal ready state to trigger marker rendering
+                    setIsMapReady(true);
+
+                    // Force a size invalidation to handle any CSS transitions causing wrong dimensions
+                    setTimeout(() => {
+                        map.invalidateSize();
+                    }, 100);
+
+                } catch (err) {
+                    console.error("Failed to initialize map:", err);
+                }
+            });
+        }, 150); // 150ms delay for smooth UI
+
+        // Cleanup on unmount (Switching back to List View)
+        return cleanup;
+    }, []); // Empty dependency array ensures this runs only once on mount
 
     // 2. Update Markers (Runs when schools data or map ready state changes)
     useEffect(() => {
-        if (!isMapReady || !markersLayerRef.current) return;
+        if (!isMapReady || !markersLayerRef.current || !mapInstanceRef.current) return;
         
         const layerGroup = markersLayerRef.current;
         const map = mapInstanceRef.current;
@@ -93,7 +125,7 @@ const SchoolMap: React.FC<SchoolMapProps> = ({ schools, center, onSelectSchool }
             });
 
             marker.bindPopup(popupContent);
-            marker.addTo(layerGroup); // Add to layer group instead of map directly
+            marker.addTo(layerGroup);
             markers.push(marker);
         });
 
@@ -113,8 +145,10 @@ const SchoolMap: React.FC<SchoolMapProps> = ({ schools, center, onSelectSchool }
         <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden h-[600px] relative animate-in fade-in duration-500">
              {!isMapReady && (
                  <div className="absolute inset-0 flex items-center justify-center bg-slate-50 z-20">
-                     <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
-                     <span className="ml-2 text-slate-500 font-medium">Carregando mapa...</span>
+                     <div className="flex flex-col items-center gap-2">
+                        <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+                        <span className="text-slate-500 font-medium text-sm">Carregando mapa...</span>
+                     </div>
                  </div>
              )}
              <div ref={mapContainerRef} className="w-full h-full z-10" />
@@ -218,7 +252,8 @@ export const SchoolList: React.FC = () => {
 
   // Extract unique classes for the filter dropdown
   const availableClasses = useMemo(() => {
-    const classes = new Set(schoolStudents.map(s => s.className).filter(Boolean));
+    // Default to "Sem Turma" for empty strings or undefined
+    const classes = new Set(schoolStudents.map(s => s.className || 'Sem Turma'));
     return Array.from(classes).sort();
   }, [schoolStudents]);
 
@@ -235,7 +270,8 @@ export const SchoolList: React.FC = () => {
       const matchesStatus = modalStatusFilter === 'Todos' || s.status === modalStatusFilter;
 
       // Class Filter
-      const matchesClass = modalClassFilter === 'Todas' || s.className === modalClassFilter;
+      const studentClass = s.className || 'Sem Turma';
+      const matchesClass = modalClassFilter === 'Todas' || studentClass === modalClassFilter;
 
       return matchesText && matchesStatus && matchesClass;
     });
@@ -245,7 +281,7 @@ export const SchoolList: React.FC = () => {
   const schoolClassesGrouped = useMemo(() => {
     const groups: Record<string, RegistryStudent[]> = {};
     schoolStudents.forEach(student => {
-      const className = student.className || 'Sem Turma Definida';
+      const className = student.className || 'Sem Turma';
       if (!groups[className]) groups[className] = [];
       groups[className].push(student);
     });
@@ -344,6 +380,7 @@ export const SchoolList: React.FC = () => {
           </div>
         </div>
 
+        {/* Conditional Rendering: Only render map when active to improve performance */}
         {viewMode === 'map' ? (
             <SchoolMap 
                 schools={processedSchools} 
@@ -650,8 +687,10 @@ export const SchoolList: React.FC = () => {
                                                                 <span className="flex items-center gap-1 bg-slate-100 px-1.5 rounded"><Hash className="h-3 w-3" /> {student.enrollmentId}</span>
                                                             )}
                                                             <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {student.birthDate}</span>
-                                                            {student.className && (
+                                                            {student.className ? (
                                                                 <span className="flex items-center gap-1 text-blue-600 font-medium"><Layout className="h-3 w-3" /> {student.className}</span>
+                                                            ) : (
+                                                                <span className="flex items-center gap-1 text-slate-400 font-medium italic"><Layout className="h-3 w-3" /> Sem Turma</span>
                                                             )}
                                                         </div>
                                                     </div>

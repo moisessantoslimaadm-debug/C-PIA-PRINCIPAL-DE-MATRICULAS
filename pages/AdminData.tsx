@@ -2,12 +2,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
 import { useToast } from '../contexts/ToastContext';
+import { Link, useNavigate } from '../router';
 import { 
   FileSpreadsheet, Upload, RefreshCw, Check, AlertTriangle, Database, 
   Download, Users, Search, ChevronLeft, ChevronRight, Eye, Save, UserPlus, X, Eraser,
   School as SchoolIcon, Layout, Bus, HeartPulse,
   ArrowUpDown, ArrowUp, ArrowDown, Layers, Trash2, Lock, Edit3, CheckSquare, Square, MinusSquare, LogOut,
-  Pencil
+  LayoutDashboard
 } from 'lucide-react';
 import { RegistryStudent, School, SchoolType } from '../types';
 
@@ -564,9 +565,12 @@ const StudentDetailModal = ({
 export const AdminData: React.FC = () => {
   const { schools, students, updateSchools, updateStudents, addStudent, removeStudent, resetData, lastBackupDate, registerBackup } = useData();
   const { addToast } = useToast();
+  const navigate = useNavigate();
   
-  // Auth State
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Auth State (Session Persistence)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return sessionStorage.getItem('admin_auth') === 'true';
+  });
   const [passwordInput, setPasswordInput] = useState('');
   
   // Upload States
@@ -619,6 +623,7 @@ export const AdminData: React.FC = () => {
       // Simple mock auth
       if (passwordInput === 'admin123') {
           setIsAuthenticated(true);
+          sessionStorage.setItem('admin_auth', 'true');
           addToast('Acesso administrativo concedido.', 'success');
       } else {
           addToast('Senha incorreta.', 'error');
@@ -627,6 +632,7 @@ export const AdminData: React.FC = () => {
   
   const handleLogout = () => {
     setIsAuthenticated(false);
+    sessionStorage.removeItem('admin_auth');
     setPasswordInput('');
     addToast('Sessão encerrada com sucesso.', 'info');
   };
@@ -1329,7 +1335,15 @@ export const AdminData: React.FC = () => {
             <h1 className="text-3xl font-bold text-slate-900">Gestão de Dados</h1>
             <p className="text-slate-600 mt-1">Importe, gerencie e analise os dados da rede municipal.</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+             <Link 
+              to="/dashboard"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-bold shadow-md shadow-blue-200"
+            >
+              <LayoutDashboard className="h-4 w-4" />
+              Ir para Dashboard
+            </Link>
+            <div className="h-6 w-px bg-slate-300 mx-1 hidden sm:block"></div>
             <button 
               onClick={() => {
                 if(window.confirm('Deseja fazer um backup antes de resetar?')) handleBackup();
